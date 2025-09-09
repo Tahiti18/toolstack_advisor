@@ -26,3 +26,29 @@ BASE_CATEGORY_WEIGHTS = {
     "Video Creation & Editing": 1.0,
     "Image & Design": 1
 }
+
+def recommend(session: Session, answers: Dict[str, str]) -> List[Tool]:
+    """
+    Recommend tools based on survey answers.
+
+    :param session: SQLAlchemy session
+    :param answers: dict of user answers
+    :return: list of Tool objects
+    """
+    # Load scoring weights
+    weights = load_weights(BASE_CATEGORY_WEIGHTS, answers)
+
+    # Fetch all tools from DB
+    tools: List[Tool] = session.query(Tool).all()
+
+    # Score each tool
+    scored: List[Tuple[Tool, float]] = []
+    for tool in tools:
+        score = score_row(tool, weights)
+        scored.append((tool, score))
+
+    # Sort by score, highest first
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    # Return top N tools (e.g., top 10)
+    return [tool for tool, _ in scored[:10]]
