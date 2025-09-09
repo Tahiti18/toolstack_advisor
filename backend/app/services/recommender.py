@@ -25,3 +25,4 @@ BASE_CATEGORY_WEIGHTS = {
     "Social & Scheduling": 1.0,
     "Video Creation & Editing": 1.0,
     "Image & Design": 1
+}
