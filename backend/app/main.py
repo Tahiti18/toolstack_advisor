@@ -1,8 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .db import init_db
-from .routes import health, questionnaire, tools, recommend
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pathlib import Path
+import os, asyncio
+import httpx
+
 from .config import get_settings
+from .db import init_db
+from .routes import health, questionnaire, tools, recommend, ingest
 
 settings = get_settings()
 app = FastAPI(title=settings.APP_NAME)
@@ -20,8 +26,37 @@ app.add_middleware(
 # DB
 init_db()
 
+# Static + favicon
+app.mount("/static", StaticFiles(directory="backend/app/static"), name="static")
+@app.get("/favicon.ico")
+async def favicon():
+    return FileResponse(Path("backend/app/static/favicon.ico"))
+
 # Routes
 app.include_router(health.router)
 app.include_router(questionnaire.router)
 app.include_router(tools.router)
 app.include_router(recommend.router)
+app.include_router(ingest.router)
+
+# Keep-alive (prevents Railway free-tier auto-sleep)
+async def _keepalive_loop():
+    port = int(os.getenv("PORT", "8000"))
+    url = f"http://127.0.0.1:{port}/health"
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                await client.get(url)
+        except Exception:
+            pass
+        await asyncio.sleep(240)  # ping every 4 minutes
+
+@app.on_event("startup")
+async def _startup():
+    app.state._keepalive_task = asyncio.create_task(_keepalive_loop())
+
+@app.on_event("shutdown")
+async def _shutdown():
+    t = getattr(app.state, "_keepalive_task", None)
+    if t:
+        t.cancel()
