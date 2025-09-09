@@ -1,4 +1,3 @@
-# backend/app/routes/ingest.py
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
 import csv, io
@@ -67,7 +66,8 @@ async def ingest_tools(csv_file: UploadFile = File(...), db: Session = Depends(g
         }
 
         if obj:
-            for k,v in fields.items(): setattr(obj, k, v)
+            for k, v in fields.items():
+                setattr(obj, k, v)
             updated += 1
         else:
             db.add(Tool(tool_id=tool_id, **fields))
