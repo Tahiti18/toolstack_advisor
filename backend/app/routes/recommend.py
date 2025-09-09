@@ -4,13 +4,21 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 
-from ..db import get_db
+# import the session factory, not get_db
+from ..db import SessionLocal
 from ..services.recommender import recommend
 
 router = APIRouter()
 
+# local FastAPI dependency to avoid import errors/cycles
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 class RecommendRequest(BaseModel):
-    # answers from /questionnaire (you can add more fields later)
     answers: Dict[str, Any] = Field(default_factory=dict)
     budget_monthly: Optional[float] = None
     must_integrate_with: List[str] = Field(default_factory=list)
@@ -40,6 +48,7 @@ def get_recommendation(payload: RecommendRequest, db: Session = Depends(get_db))
         prefer_self_hostable=payload.prefer_self_hostable,
         max_tool_count=payload.max_tool_count,
     )
+
     def to_item(t):
         return {
             "tool_id": t.tool_id,
@@ -48,6 +57,7 @@ def get_recommendation(payload: RecommendRequest, db: Session = Depends(get_db))
             "price_low_usd": t.price_low_usd,
             "total_score": t.total_score,
         }
+
     return {
         "tools": [to_item(t) for t in picked],
         "alternates": [to_item(t) for t in alternates],
