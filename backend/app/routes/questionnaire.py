@@ -1,10 +1,13 @@
-import json, os
+import json
+from pathlib import Path
 from fastapi import APIRouter
 
 router = APIRouter()
 
+# Resolve to /backend/data/questionnaire_sample.json (two levels up from /backend/app/routes)
+DATA_PATH = (Path(__file__).resolve().parents[2] / "backend" / "data" / "questionnaire_sample.json")
+
 @router.get("/questionnaire")
 def get_questionnaire():
-    path = os.path.join(os.path.dirname(__file__), "..", "data", "questionnaire_sample.json")
-    with open(path, "r") as f:
+    with DATA_PATH.open("r", encoding="utf-8") as f:
         return json.load(f)
