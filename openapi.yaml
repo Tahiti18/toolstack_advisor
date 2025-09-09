@@ -1,0 +1,28 @@
+openapi: 3.0.3
+info:
+  title: ToolStack Advisor API
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses: {{ '200': {{ description: OK }} }}
+  /tools:
+    get:
+      summary: List tools (paged, filterable)
+      responses: {{ '200': {{ description: OK }} }}
+    post:
+      summary: Upsert a tool
+      responses: {{ '201': {{ description: Created }} }}
+  /tools/{{tool_id}}:
+    get:
+      summary: Get tool by ID
+      responses: {{ '200': {{ description: OK }} }}
+  /recommend:
+    post:
+      summary: Recommend a stack
+      responses: {{ '200': {{ description: OK }} }}
+  /questionnaire:
+    get:
+      summary: Fetch the current questionnaire
+      responses: {{ '200': {{ description: OK }} }}

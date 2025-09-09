@@ -1,0 +1,146 @@
+{
+  "version": "0.1.0",
+  "updated_at": "2025-09-09T10:19:12.227020Z",
+  "sections": [
+    {
+      "id": "company",
+      "title": "Company Profile",
+      "questions": [
+        {
+          "id": "team_size",
+          "type": "single_select",
+          "options": [
+            "1",
+            "2-5",
+            "6-15",
+            "16-50",
+            "50+"
+          ],
+          "prompt": "How many people will use the tools?"
+        },
+        {
+          "id": "budget_monthly",
+          "type": "numeric",
+          "min": 0,
+          "prompt": "What is your total monthly budget (USD)?"
+        },
+        {
+          "id": "region",
+          "type": "single_select",
+          "options": [
+            "US/Canada",
+            "EU/UK",
+            "MENA",
+            "LATAM",
+            "APAC",
+            "Global"
+          ],
+          "prompt": "Primary operating region?"
+        },
+        {
+          "id": "compliance",
+          "type": "multi_select",
+          "options": [
+            "GDPR",
+            "SOC2",
+            "HIPAA",
+            "None"
+          ],
+          "prompt": "Any compliance requirements?"
+        }
+      ]
+    },
+    {
+      "id": "gtm",
+      "title": "Go To Market",
+      "questions": [
+        {
+          "id": "channels",
+          "type": "multi_select",
+          "options": [
+            "SEO",
+            "Paid Ads",
+            "Social Organic",
+            "YouTube/Video",
+            "Email",
+            "Partnerships",
+            "Cold Outreach"
+          ],
+          "prompt": "Top acquisition channels?"
+        },
+        {
+          "id": "content_types",
+          "type": "multi_select",
+          "options": [
+            "Blog",
+            "Landing Pages",
+            "Short Video",
+            "Long Video",
+            "Graphics",
+            "Voiceover/Podcast",
+            "Presentations"
+          ],
+          "prompt": "What content will you produce?"
+        }
+      ]
+    },
+    {
+      "id": "constraints",
+      "title": "Constraints",
+      "questions": [
+        {
+          "id": "must_integrations",
+          "type": "text",
+          "prompt": "Must-have integrations? (comma-separated)"
+        },
+        {
+          "id": "data_privacy",
+          "type": "single_select",
+          "options": [
+            "Cloud",
+            "EU residency",
+            "Self-host"
+          ],
+          "prompt": "Data privacy preference?"
+        },
+        {
+          "id": "skill_level",
+          "type": "single_select",
+          "options": [
+            "Click-to-use",
+            "Low-code",
+            "Developer-friendly"
+          ],
+          "prompt": "Preferred complexity level?"
+        }
+      ]
+    },
+    {
+      "id": "objectives",
+      "title": "Objectives",
+      "questions": [
+        {
+          "id": "primary_goal",
+          "type": "single_select",
+          "options": [
+            "Validate idea",
+            "Launch MVP",
+            "Acquire first 100 customers",
+            "Scale to $50k MRR"
+          ],
+          "prompt": "Primary near-term goal?"
+        },
+        {
+          "id": "time_to_value",
+          "type": "single_select",
+          "options": [
+            "<1 week",
+            "1\u20134 weeks",
+            "1\u20133 months"
+          ],
+          "prompt": "How fast do you need results?"
+        }
+      ]
+    }
+  ]
+}
