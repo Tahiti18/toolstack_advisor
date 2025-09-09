@@ -1,0 +1,2 @@
+Append this line to your requirements.txt to enable CSV uploads via FastAPI:
+python-multipart==0.0.9

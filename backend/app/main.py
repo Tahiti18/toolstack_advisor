@@ -13,7 +13,7 @@ settings = get_settings()
 app = FastAPI(title=settings.APP_NAME)
 
 # CORS
-origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",")] if settings.ALLOWED_ORIGINS else ["*"]
+origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",")] if getattr(settings, "ALLOWED_ORIGINS", None) else ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -39,7 +39,7 @@ app.include_router(tools.router)
 app.include_router(recommend.router)
 app.include_router(ingest.router)
 
-# Keep-alive (prevents Railway auto-sleep) — uses stdlib only
+# Keep-alive (prevents Railway auto-sleep) — stdlib only
 async def _keepalive_loop():
     port = int(os.getenv("PORT", "8000"))
     url = f"http://127.0.0.1:{port}/health"
