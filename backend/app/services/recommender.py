@@ -1,11 +1,12 @@
 # backend/app/services/recommender.py
 from __future__ import annotations
-from sqlalchemy.orm import Session
 from typing import Dict, List, Tuple
+from sqlalchemy.orm import Session
+
 from ..models import Tool
 from ..utils.scoring import load_weights, score_row
 
-# Map channels to the categories a viable stack should cover
+# Channels → categories to prioritize (not hard requirements)
 CHANNEL_CATEGORY_MAP: Dict[str, List[str]] = {
     "SEO": ["SEO", "Copy & Content"],
     "Paid Ads": ["Ads & Creatives", "Image & Design"],
@@ -14,70 +15,96 @@ CHANNEL_CATEGORY_MAP: Dict[str, List[str]] = {
     "Email": ["CRM, Outreach & Sales Ops", "Copy & Content"],
     "Cold Outreach": ["CRM, Outreach & Sales Ops", "Automation & Agents"],
     "Partnerships": ["CRM, Outreach & Sales Ops"],
+    # catch-alls
+    "Research": ["Research & Strategy", "Copy & Content"],
 }
 
-# Category base weights (all 1.0; boosted by answers)
-BASE_CATEGORY_WEIGHTS = {
-    "Research & Strategy": 1.0,
-    "Copy & Content": 1.0,
-    "SEO": 1.0,
-    "Ads & Creatives": 1.0,
-    "Social & Scheduling": 1.0,
-    "Video Creation & Editing": 1.0,
-    "Image & Design": 1
-}
+def _preferred_categories(answers: dict) -> List[str]:
+    cats: List[str] = []
+    channels = answers.get("channels") or answers.get("gtm_title") or []
+    if isinstance(channels, str):
+        channels = [channels]
+    for ch in channels:
+        cats.extend(CHANNEL_CATEGORY_MAP.get(ch, []))
+    # Always allow a few general categories
+    cats.extend(["Research & Strategy", "Copy & Content", "Automation & Agents"])
+    # de-dup, preserve order
+    seen = set(); ordered = []
+    for c in cats:
+        if c and c not in seen:
+            ordered.append(c); seen.add(c)
+    return ordered
+
+def _category_boost(category: str, preferred: List[str]) -> float:
+    # Early categories get a slightly higher boost
+    if category in preferred:
+        idx = preferred.index(category)
+        return max(1.05, 1.30 - 0.03 * idx)  # 1.30 → 1.05
+    return 1.0
 
 def recommend(
-    session: Session,
-    answers: Dict[str, str],
-    budget_monthly: int = 0,
-    must_integrate_with: List[str] | None = None,
-    prefer_self_hostable: bool = False,
-    max_tool_count: int = 10
-) -> List[Tool]:
-    """
-    Recommend tools based on survey answers and preferences.
+    db: Session,
+    answers: dict,
+    budget_monthly: float | None,
+    must_integrate_with: List[str],
+    prefer_self_hostable: bool,
+    max_tool_count: int = 8
+) -> Tuple[List[Tool], List[Tool], float, str]:
 
-    :param session: SQLAlchemy session
-    :param answers: dict of user answers
-    :param budget_monthly: budget in USD
-    :param must_integrate_with: list of required integrations
-    :param prefer_self_hostable: whether to prioritize self-hostable tools
-    :param max_tool_count: maximum number of tools to return
-    :return: list of Tool objects
-    """
-    if must_integrate_with is None:
-        must_integrate_with = []
+    weights = load_weights()  # uses backend/data/scoring_weights_default.json
 
-    # Load scoring weights
-    weights = load_weights(BASE_CATEGORY_WEIGHTS, answers)
+    # 1) START from all tools
+    q = db.query(Tool)
 
-    # Fetch all tools from DB
-    tools: List[Tool] = session.query(Tool).all()
+    # 2) Hard filters
+    if prefer_self_hostable:
+        # Cheap heuristic: keep tools that expose webhooks or n8n support
+        q = q.filter((Tool.n8n == True) | (Tool.webhooks == True))  # noqa: E712
 
-    # Score each tool
-    scored: List[Tuple[Tool, float]] = []
-    for tool in tools:
-        score = score_row(tool, weights)
+    tools = q.all()
 
-        # Apply budget filter
-        if budget_monthly and tool.price_low_usd and tool.price_low_usd > budget_monthly:
-            continue
+    if must_integrate_with:
+        miw = [m.lower() for m in must_integrate_with if m]
+        filtered = []
+        for t in tools:
+            blob = (t.integrations_csv or "").lower()
+            if any(m in blob for m in miw):
+                filtered.append(t)
+        tools = filtered or tools  # if nothing matched, fall back to all
 
-        # Apply integration filter
-        if must_integrate_with:
-            integrations = (tool.integrations_csv or "").split(",")
-            if not all(req in integrations for req in must_integrate_with):
-                continue
+    if not tools:
+        return [], [], 0.0, "No tools matched the constraints."
 
-        # Apply self-hostable preference
-        if prefer_self_hostable and not getattr(tool, "self_hostable", False):
-            score *= 0.8  # penalize non-self-hostable tools
+    # 3) Compute scores with category boosts
+    preferred = _preferred_categories(answers or {})
+    scored: List[tuple[float, float, Tool]] = []
+    for t in tools:
+        base = score_row(t, weights)  # uses numeric fields already on row
+        boost = _category_boost(t.category or "", preferred)
+        total = round(base * boost, 4)
+        price = float(t.price_low_usd or 0.0)
+        scored.append((total, price, t))
 
-        scored.append((tool, score))
+    # 4) Assemble within budget (utility-per-dollar, then raw score)
+    picked: List[Tool] = []
+    cost = 0.0
+    for total, price, t in sorted(scored, key=lambda x: (-(x[0] / (x[1] or 1.0)), -x[0])):
+        if len(picked) >= max_tool_count:
+            break
+        next_cost = cost + (price or 0.0)
+        if (budget_monthly is None) or (next_cost <= budget_monthly):
+            picked.append(t)
+            cost = next_cost
 
-    # Sort by score, highest first
-    scored.sort(key=lambda x: x[1], reverse=True)
+    if not picked:
+        # If budget prevented everything, pick the single best free/cheapest tool
+        t = sorted(scored, key=lambda x: (-x[0], x[1]))[0][2]
+        picked = [t]
+        cost = float(t.price_low_usd or 0.0)
 
-    # Return top N tools
-    return [tool for tool, _ in scored[:max_tool_count]]
+    # 5) Alternates = top-scoring not picked (2)
+    picked_ids = {p.tool_id for p in picked}
+    alternates = [t for _, __, t in sorted(scored, key=lambda x: -x[0]) if t.tool_id not in picked_ids][:2]
+
+    rationale = "Ranked by weighted utility with category boosts and budget-awareness."
+    return picked, alternates, round(cost, 2), rationale
